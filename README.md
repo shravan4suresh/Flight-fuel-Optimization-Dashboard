@@ -33,6 +33,7 @@ flight-fuel-optimization-dashboard/
 The sample CSV includes:
 
 - `flight_date`
+- `travel_season`
 - `departure_airport`
 - `airline`
 - `aircraft_type`
@@ -51,6 +52,7 @@ The sample CSV includes:
 - `crosswind_component_knots`
 - `weather_condition`
 - `airport_congestion_level`
+- `passenger_demand_index`
 - `fuel_burn_rate_kg_per_minute`
 - `estimated_extra_fuel_kg`
 - `estimated_co2_kg`
@@ -61,6 +63,7 @@ The sample CSV includes:
 - Taxi delay by airport/runway
 - Weather impact on taxi time
 - Tailwind and crosswind impact on taxi-out time
+- Singapore Changi peak vs off-peak taxi-out and fuel impact
 - Congestion vs fuel burn
 - Estimated fuel saving
 - CO2 saving estimate
@@ -79,6 +82,8 @@ tailwind_component = max(-headwind_component, 0)
 ```
 
 This feature engineering is more aviation-relevant than raw wind speed because the same wind can be a headwind, tailwind, or crosswind depending on assigned runway direction.
+
+The dataset also includes a synthetic Singapore Changi Airport (`SIN`) case study. Changi rows are labeled as `Peak` or `Off-Peak` travel season and include a `passenger_demand_index` to model how seasonal demand can increase pushback delay, taxi queues, fuel burn, and emissions.
 
 Extra fuel burn is estimated as:
 

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight Fuel Optimization Dashboard</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="style.css?v=wind-components">
+  <link rel="stylesheet" href="style.css?v=changi-season">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
-  <script src="app.js?v=wind-components" defer></script>
+  <script src="app.js?v=changi-season" defer></script>
 </head>
 <body>
   <main class="wrap">
@@ -15,6 +15,7 @@
       <a href="#overview" class="active">Overview</a>
       <a href="#taxi-analysis">Taxi-Out</a>
       <a href="#weather">Weather</a>
+      <a href="#changi">Changi</a>
       <a href="#fuel">Fuel</a>
       <a href="#co2">CO2</a>
       <a href="#ml">ML Results</a>
@@ -60,6 +61,10 @@
         <div class="eyebrow">Avg Tailwind Component</div>
         <div class="metric" id="metricTailwind">--</div>
       </article>
+      <article class="card">
+        <div class="eyebrow">SIN Flights</div>
+        <div class="metric" id="metricSinFlights">--</div>
+      </article>
     </section>
 
     <section class="panel">
@@ -83,6 +88,10 @@
         <article class="explain-card">
           <h3>Wind Components</h3>
           <p>Transform raw wind speed into headwind, tailwind, and crosswind components relative to each assigned runway.</p>
+        </article>
+        <article class="explain-card">
+          <h3>Changi Seasonality</h3>
+          <p>Compare synthetic Singapore Changi peak and off-peak travel periods to show how demand changes taxi delay and fuel impact.</p>
         </article>
       </div>
     </section>
@@ -122,6 +131,37 @@
       <div class="chart-card wide spacer">
         <h3>Tailwind and Crosswind Impact on Taxi-Out Time</h3>
         <canvas id="windComponentChart"></canvas>
+      </div>
+    </section>
+
+    <section class="panel" id="changi">
+      <h2>Singapore Changi Seasonal Analysis</h2>
+      <p>
+        Singapore Changi Airport is included as a focused synthetic case study. Peak periods model school-holiday and year-end travel demand, while off-peak periods model steadier baseline operations.
+      </p>
+      <div class="summary-grid compact">
+        <article class="card">
+          <div class="eyebrow">SIN Peak Taxi-Out</div>
+          <div class="metric" id="metricSinPeakTaxi">--</div>
+        </article>
+        <article class="card">
+          <div class="eyebrow">SIN Off-Peak Taxi-Out</div>
+          <div class="metric" id="metricSinOffPeakTaxi">--</div>
+        </article>
+        <article class="card">
+          <div class="eyebrow">Peak Demand Index</div>
+          <div class="metric" id="metricSinDemand">--</div>
+        </article>
+      </div>
+      <div class="two-up">
+        <div class="chart-card">
+          <h3>Changi Peak vs Off-Peak Taxi-Out</h3>
+          <canvas id="changiSeasonChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Changi Seasonal Fuel and CO2 Impact</h3>
+          <canvas id="changiImpactChart"></canvas>
+        </div>
       </div>
     </section>
 
@@ -223,6 +263,7 @@
           <thead>
             <tr>
               <th>Date</th>
+              <th>Season</th>
               <th>Airport</th>
               <th>Airline</th>
               <th>Aircraft</th>

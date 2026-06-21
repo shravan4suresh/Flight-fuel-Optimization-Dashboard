@@ -26,10 +26,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadFlightData() {
-  const response = await fetch("data/sample_flight_data.csv?v=wind-components");
+  const response = await fetch("data/sample_flight_data.csv?v=changi-season");
   const text = await response.text();
   return parseCsv(text).map((row) => ({
     ...row,
+    passenger_demand_index: Number(row.passenger_demand_index),
     taxi_out_time_minutes: Number(row.taxi_out_time_minutes),
     departure_delay_minutes: Number(row.departure_delay_minutes),
     wind_speed: Number(row.wind_speed),
@@ -73,9 +74,11 @@ function predictTaxiOut(row, index) {
     ORD: 2.9,
     ATL: 2.1,
     DFW: 1.7,
-    SFO: 2.8
+    SFO: 2.8,
+    SIN: 2.0
   }[row.departure_airport] || 1.5;
   const aircraftPenalty = row.aircraft_type.includes("777") || row.aircraft_type.includes("A350") ? 1.4 : 0.6;
+  const demandPenalty = Math.max(0, row.passenger_demand_index - 70) * 0.055;
   const deterministicNoise = ((index % 7) - 3) * 0.42;
   const prediction = 9.5
     + row.airport_congestion_level * 2.15
@@ -87,6 +90,7 @@ function predictTaxiOut(row, index) {
     + weatherPenalty
     + airportPenalty
     + aircraftPenalty
+    + demandPenalty
     + deterministicNoise;
   return Number(prediction.toFixed(1));
 }
@@ -96,6 +100,9 @@ function renderMetrics(data) {
   const totalCo2 = sum(data, "estimated_co2_kg");
   const avgTaxi = average(data, "taxi_out_time_minutes");
   const avgTailwind = average(data, "tailwind_component_knots");
+  const sinData = data.filter((row) => row.departure_airport === "SIN");
+  const sinPeak = sinData.filter((row) => row.travel_season === "Peak");
+  const sinOffPeak = sinData.filter((row) => row.travel_season === "Off-Peak");
   const mae = average(data.map((row) => ({ error: Math.abs(row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) })), "error");
   const rmse = Math.sqrt(average(data.map((row) => ({ error: (row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) ** 2 })), "error"));
   const r2 = calculateR2(data);
@@ -105,6 +112,10 @@ function renderMetrics(data) {
   setText("metricFuel", `${Math.round(totalFuel).toLocaleString()} kg`);
   setText("metricCo2", `${Math.round(totalCo2).toLocaleString()} kg`);
   setText("metricTailwind", `${avgTailwind.toFixed(1)} kt`);
+  setText("metricSinFlights", sinData.length.toLocaleString());
+  setText("metricSinPeakTaxi", `${average(sinPeak, "taxi_out_time_minutes").toFixed(1)} min`);
+  setText("metricSinOffPeakTaxi", `${average(sinOffPeak, "taxi_out_time_minutes").toFixed(1)} min`);
+  setText("metricSinDemand", average(sinPeak, "passenger_demand_index").toFixed(0));
   setText("metricCost", `$${Math.round(totalFuel * FUEL_PRICE_PER_KG).toLocaleString()}`);
   setText("metricMae", `${mae.toFixed(1)} min`);
   setText("metricRmse", `${rmse.toFixed(1)} min`);
@@ -117,6 +128,7 @@ function renderCharts(data) {
   renderWeather(data);
   renderCongestionFuel(data);
   renderWindComponents(data);
+  renderChangiSeason(data);
   renderFuelSaving(data);
   renderCo2Saving(data);
   renderPredictedActual(data);
@@ -163,6 +175,14 @@ function renderAirportRunway(data) {
 function renderWeather(data) {
   const grouped = groupAverage(data, "weather_condition", "taxi_out_time_minutes")
     .sort((a, b) => a.value - b.value);
+  const weatherColors = {
+    Clear: palette.green,
+    Cloudy: palette.teal,
+    Rain: palette.blue,
+    Fog: palette.amber,
+    Snow: palette.gray,
+    Thunderstorm: palette.red
+  };
   makeChart("weatherChart", {
     type: "bar",
     data: {
@@ -170,7 +190,7 @@ function renderWeather(data) {
       datasets: [{
         label: "Average taxi-out minutes",
         data: grouped.map((row) => row.value),
-        backgroundColor: [palette.green, palette.teal, palette.blue, palette.amber, palette.red]
+        backgroundColor: grouped.map((row) => weatherColors[row.key] || palette.gray)
       }]
     },
     options: chartOptions("Weather condition", "Minutes")
@@ -208,6 +228,70 @@ function renderWindComponents(data) {
         y1: {
           position: "right",
           title: { display: true, text: "Crosswind knots" },
+          grid: { drawOnChartArea: false },
+          ticks: { color: "#60706b" },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+function renderChangiSeason(data) {
+  const sinData = data.filter((row) => row.departure_airport === "SIN");
+  const order = ["Off-Peak", "Peak"];
+  const seasonTaxi = groupAverage(sinData, "travel_season", "taxi_out_time_minutes");
+  const seasonDelay = groupAverage(sinData, "travel_season", "departure_delay_minutes");
+  const seasonFuel = groupSum(sinData, "travel_season", "estimated_extra_fuel_kg");
+  const seasonCo2 = groupSum(sinData, "travel_season", "estimated_co2_kg");
+
+  makeChart("changiSeasonChart", {
+    type: "bar",
+    data: {
+      labels: order,
+      datasets: [
+        {
+          label: "Average taxi-out minutes",
+          data: valuesForOrder(seasonTaxi, order),
+          backgroundColor: palette.teal
+        },
+        {
+          label: "Average departure delay minutes",
+          data: valuesForOrder(seasonDelay, order),
+          backgroundColor: palette.blue
+        }
+      ]
+    },
+    options: chartOptions("Travel season", "Minutes")
+  });
+
+  makeChart("changiImpactChart", {
+    type: "bar",
+    data: {
+      labels: order,
+      datasets: [
+        {
+          label: "Extra fuel kg",
+          data: valuesForOrder(seasonFuel, order),
+          backgroundColor: palette.amber,
+          yAxisID: "y"
+        },
+        {
+          label: "CO2 kg",
+          data: valuesForOrder(seasonCo2, order),
+          backgroundColor: palette.gray,
+          yAxisID: "y1"
+        }
+      ]
+    },
+    options: {
+      ...chartOptions("Travel season", "Fuel kg"),
+      scales: {
+        x: chartOptions("Travel season", "Fuel kg").scales.x,
+        y: chartOptions("Travel season", "Fuel kg").scales.y,
+        y1: {
+          position: "right",
+          title: { display: true, text: "CO2 kg" },
           grid: { drawOnChartArea: false },
           ticks: { color: "#60706b" },
           beginAtZero: true
@@ -328,9 +412,14 @@ function setupScenario(data) {
 }
 
 function renderSampleRows(data) {
-  const rows = data.slice(0, 10).map((row) => `
+  const featuredRows = [
+    ...data.filter((row) => row.departure_airport === "SIN").slice(0, 6),
+    ...data.filter((row) => row.departure_airport !== "SIN").slice(0, 4)
+  ];
+  const rows = featuredRows.map((row) => `
     <tr>
       <td>${row.flight_date}</td>
+      <td>${row.travel_season}</td>
       <td>${row.departure_airport}</td>
       <td>${row.airline}</td>
       <td>${row.aircraft_type}</td>
@@ -344,6 +433,10 @@ function renderSampleRows(data) {
     </tr>
   `).join("");
   document.getElementById("sampleRows").innerHTML = rows;
+}
+
+function valuesForOrder(grouped, order) {
+  return order.map((key) => grouped.find((row) => row.key === key)?.value || 0);
 }
 
 function tailwindBucket(row) {

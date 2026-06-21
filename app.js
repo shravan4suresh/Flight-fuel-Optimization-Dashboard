@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadFlightData() {
-  const response = await fetch("data/sample_flight_data.csv");
+  const response = await fetch("data/sample_flight_data.csv?v=wind-components");
   const text = await response.text();
   return parseCsv(text).map((row) => ({
     ...row,

@@ -625,7 +625,7 @@ function setupFilterControls() {
 
 function populateFilterOptions(data) {
   const airports = uniqueSorted(data.map((row) => row.departure_airport));
-  const selectedAirport = getFilterValue("airportFilter", "SIN");
+  const selectedAirport = normalizeAirportFilter(getFilterValue("airportFilter", "SIN"));
   const airlineRows = selectedAirport && selectedAirport !== "All Airports"
     ? data.filter((row) => row.departure_airport === selectedAirport)
     : data;

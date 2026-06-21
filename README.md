@@ -75,7 +75,7 @@ The dashboard includes a **Refresh Data** button. It re-fetches `data/sample_fli
 
 ## Filtering
 
-The dashboard defaults to Singapore Changi Airport (`SIN`) so the main view is focused on one airport. Use the Airport and Airline filters to analyze a different airport or carrier; every chart, metric, scenario estimate, and table updates from the selected records.
+The dashboard defaults to Singapore Changi Airport (`SIN`) so the main view is focused on one airport. The repository dataset also includes Bengaluru Kempegowda Airport (`BLR`). Use the Airport and Airline filters to analyze a different airport or carrier; every chart, metric, scenario estimate, and table updates from the selected records.
 
 ## Methodology
 
@@ -91,7 +91,7 @@ tailwind_component = max(-headwind_component, 0)
 
 This feature engineering is more aviation-relevant than raw wind speed because the same wind can be a headwind, tailwind, or crosswind depending on assigned runway direction.
 
-The dataset also includes a synthetic Singapore Changi Airport (`SIN`) case study. Changi rows are labeled as `Peak` or `Off-Peak` travel season and include a `passenger_demand_index` to model how seasonal demand can increase pushback delay, taxi queues, fuel burn, and emissions.
+The dataset includes synthetic Singapore Changi Airport (`SIN`) and Bengaluru Kempegowda Airport (`BLR`) case studies. These rows are labeled as `Peak` or `Off-Peak` travel season and include a `passenger_demand_index` to model how seasonal demand can increase pushback delay, taxi queues, fuel burn, and emissions.
 
 Extra fuel burn is estimated as:
 

@@ -115,6 +115,37 @@ p {
   font-size: 0.95rem;
 }
 
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.refresh-button {
+  appearance: none;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 11px 14px;
+}
+
+.refresh-button:hover {
+  background: #095f58;
+}
+
+.refresh-button:disabled {
+  background: var(--muted);
+  border-color: var(--muted);
+  cursor: progress;
+}
+
 .eyebrow {
   margin-bottom: 9px;
   color: var(--muted);

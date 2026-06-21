@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight Fuel Optimization Dashboard</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="style.css?v=changi-season">
+  <link rel="stylesheet" href="style.css?v=data-refresh">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
-  <script src="app.js?v=changi-season" defer></script>
+  <script src="app.js?v=data-refresh" defer></script>
 </head>
 <body>
   <main class="wrap">
@@ -29,7 +29,10 @@
         <p class="lede">
           A static GitHub Pages dashboard for predicting taxi-out and pushback delay, estimating avoidable fuel burn, and translating operational delay into cost and CO2 impact.
         </p>
-        <div class="stamp">Synthetic aviation operations sample | Built for reproducible dashboard deployment</div>
+        <div class="data-actions">
+          <button class="refresh-button" type="button" id="refreshDataButton">Refresh Data</button>
+          <span class="stamp" id="dataRefreshStatus" aria-live="polite">Loading sample aviation data...</span>
+        </div>
       </div>
       <div class="hero-card" aria-label="Methodology summary">
         <div class="eyebrow">Model Target</div>

@@ -69,6 +69,10 @@ The sample CSV includes:
 - CO2 saving estimate
 - Predicted vs actual taxi-out time
 
+## Data Refresh
+
+The dashboard includes a **Refresh Data** button. It re-fetches `data/sample_flight_data.csv` with a timestamped request so the browser does not reuse an older cached CSV. If the CSV content has changed, every metric, chart, scenario estimate, and sample table is rebuilt in place. If the file is unchanged, the dashboard reports that no newer CSV was found.
+
 ## Methodology
 
 The dashboard uses synthetic data designed to resemble airport surface operations. Taxi-out time rises with congestion, lower visibility, adverse weather, runway wind components, runway effects, and departure delay.

@@ -11,40 +11,72 @@ const palette = {
 };
 
 const charts = {};
+const DATA_URL = "data/sample_flight_data.csv";
+let currentDataSignature = "";
+let currentData = [];
+let scenarioListenerReady = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const data = await loadFlightData();
-  const enriched = data.map((row, index) => ({
-    ...row,
-    predicted_taxi_out_time_minutes: predictTaxiOut(row, index)
-  }));
-
-  renderMetrics(enriched);
-  renderCharts(enriched);
-  renderSampleRows(enriched);
-  setupScenario(enriched);
+  setupRefreshButton();
+  await refreshDashboardData({ force: true, silent: true });
 });
 
-async function loadFlightData() {
-  const response = await fetch("data/sample_flight_data.csv?v=changi-season");
+async function refreshDashboardData({ force = false, silent = false } = {}) {
+  const button = document.getElementById("refreshDataButton");
+  try {
+    if (button) button.disabled = true;
+    setRefreshStatus(silent ? "Loading sample aviation data..." : "Checking for updated CSV data...");
+
+    const { data, signature } = await loadFlightData({ cacheBust: true });
+    if (!force && signature === currentDataSignature) {
+      setRefreshStatus(`No newer CSV found | Last checked ${formatRefreshTime(new Date())}`);
+      return;
+    }
+
+    currentDataSignature = signature;
+    currentData = data.map((row, index) => ({
+      ...row,
+      predicted_taxi_out_time_minutes: predictTaxiOut(row, index)
+    }));
+
+    renderDashboard(currentData);
+    const action = force ? "Loaded" : "Refreshed";
+    setRefreshStatus(`${action} ${currentData.length.toLocaleString()} records | ${formatRefreshTime(new Date())}`);
+  } catch (error) {
+    setRefreshStatus("Unable to refresh data. Check the CSV file path.");
+    console.error(error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadFlightData({ cacheBust = false } = {}) {
+  const url = cacheBust ? `${DATA_URL}?t=${Date.now()}` : DATA_URL;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`CSV request failed with status ${response.status}`);
+  }
   const text = await response.text();
-  return parseCsv(text).map((row) => ({
-    ...row,
-    passenger_demand_index: Number(row.passenger_demand_index),
-    taxi_out_time_minutes: Number(row.taxi_out_time_minutes),
-    departure_delay_minutes: Number(row.departure_delay_minutes),
-    wind_speed: Number(row.wind_speed),
-    visibility: Number(row.visibility),
-    wind_direction_degrees: Number(row.wind_direction_degrees),
-    runway_heading_degrees: Number(row.runway_heading_degrees),
-    headwind_component_knots: Number(row.headwind_component_knots),
-    tailwind_component_knots: Number(row.tailwind_component_knots),
-    crosswind_component_knots: Number(row.crosswind_component_knots),
-    airport_congestion_level: Number(row.airport_congestion_level),
-    fuel_burn_rate_kg_per_minute: Number(row.fuel_burn_rate_kg_per_minute),
-    estimated_extra_fuel_kg: Number(row.estimated_extra_fuel_kg),
-    estimated_co2_kg: Number(row.estimated_co2_kg)
-  }));
+  return {
+    signature: text.trim(),
+    data: parseCsv(text).map((row) => ({
+      ...row,
+      passenger_demand_index: Number(row.passenger_demand_index),
+      taxi_out_time_minutes: Number(row.taxi_out_time_minutes),
+      departure_delay_minutes: Number(row.departure_delay_minutes),
+      wind_speed: Number(row.wind_speed),
+      visibility: Number(row.visibility),
+      wind_direction_degrees: Number(row.wind_direction_degrees),
+      runway_heading_degrees: Number(row.runway_heading_degrees),
+      headwind_component_knots: Number(row.headwind_component_knots),
+      tailwind_component_knots: Number(row.tailwind_component_knots),
+      crosswind_component_knots: Number(row.crosswind_component_knots),
+      airport_congestion_level: Number(row.airport_congestion_level),
+      fuel_burn_rate_kg_per_minute: Number(row.fuel_burn_rate_kg_per_minute),
+      estimated_extra_fuel_kg: Number(row.estimated_extra_fuel_kg),
+      estimated_co2_kg: Number(row.estimated_co2_kg)
+    }))
+  };
 }
 
 function parseCsv(text) {
@@ -132,6 +164,18 @@ function renderCharts(data) {
   renderFuelSaving(data);
   renderCo2Saving(data);
   renderPredictedActual(data);
+}
+
+function renderDashboard(data) {
+  renderMetrics(data);
+  renderCharts(data);
+  renderSampleRows(data);
+  if (!scenarioListenerReady) {
+    setupScenario(data);
+    scenarioListenerReady = true;
+  } else {
+    updateScenario(data);
+  }
 }
 
 function renderTaxiTrend(data) {
@@ -399,16 +443,18 @@ function renderPredictedActual(data) {
 
 function setupScenario(data) {
   const range = document.getElementById("reductionRange");
-  const update = () => {
-    const reduction = Number(range.value) / 100;
-    const fuelSaved = sum(data, "estimated_extra_fuel_kg") * reduction;
-    setText("reductionValue", range.value);
-    setText("scenarioFuel", `${Math.round(fuelSaved).toLocaleString()} kg`);
-    setText("scenarioCost", `$${Math.round(fuelSaved * FUEL_PRICE_PER_KG).toLocaleString()}`);
-    setText("scenarioCo2", `${Math.round(fuelSaved * CO2_PER_KG_FUEL).toLocaleString()} kg`);
-  };
-  range.addEventListener("input", update);
-  update();
+  range.addEventListener("input", () => updateScenario(currentData));
+  updateScenario(data);
+}
+
+function updateScenario(data) {
+  const range = document.getElementById("reductionRange");
+  const reduction = Number(range.value) / 100;
+  const fuelSaved = sum(data, "estimated_extra_fuel_kg") * reduction;
+  setText("reductionValue", range.value);
+  setText("scenarioFuel", `${Math.round(fuelSaved).toLocaleString()} kg`);
+  setText("scenarioCost", `$${Math.round(fuelSaved * FUEL_PRICE_PER_KG).toLocaleString()}`);
+  setText("scenarioCo2", `${Math.round(fuelSaved * CO2_PER_KG_FUEL).toLocaleString()} kg`);
 }
 
 function renderSampleRows(data) {
@@ -526,4 +572,19 @@ function average(data, key) {
 
 function setText(id, value) {
   document.getElementById(id).textContent = value;
+}
+
+function setupRefreshButton() {
+  const button = document.getElementById("refreshDataButton");
+  if (!button) return;
+  button.addEventListener("click", () => refreshDashboardData());
+}
+
+function setRefreshStatus(message) {
+  const status = document.getElementById("dataRefreshStatus");
+  if (status) status.textContent = message;
+}
+
+function formatRefreshTime(date) {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

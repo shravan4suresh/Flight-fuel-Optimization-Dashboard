@@ -1,0 +1,376 @@
+const FUEL_PRICE_PER_KG = 0.86;
+const CO2_PER_KG_FUEL = 3.16;
+const TAXI_BASELINE_MINUTES = 14;
+const palette = {
+  teal: "#0d766d",
+  blue: "#2563eb",
+  amber: "#c76a1b",
+  green: "#16803f",
+  red: "#b42318",
+  gray: "#60706b"
+};
+
+const charts = {};
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const data = await loadFlightData();
+  const enriched = data.map((row, index) => ({
+    ...row,
+    predicted_taxi_out_time_minutes: predictTaxiOut(row, index)
+  }));
+
+  renderMetrics(enriched);
+  renderCharts(enriched);
+  renderSampleRows(enriched);
+  setupScenario(enriched);
+});
+
+async function loadFlightData() {
+  const response = await fetch("data/sample_flight_data.csv");
+  const text = await response.text();
+  return parseCsv(text).map((row) => ({
+    ...row,
+    taxi_out_time_minutes: Number(row.taxi_out_time_minutes),
+    departure_delay_minutes: Number(row.departure_delay_minutes),
+    wind_speed: Number(row.wind_speed),
+    visibility: Number(row.visibility),
+    airport_congestion_level: Number(row.airport_congestion_level),
+    fuel_burn_rate_kg_per_minute: Number(row.fuel_burn_rate_kg_per_minute),
+    estimated_extra_fuel_kg: Number(row.estimated_extra_fuel_kg),
+    estimated_co2_kg: Number(row.estimated_co2_kg)
+  }));
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines.shift().split(",");
+  return lines.map((line) => {
+    const values = line.split(",");
+    return headers.reduce((record, header, index) => {
+      record[header] = values[index];
+      return record;
+    }, {});
+  });
+}
+
+function predictTaxiOut(row, index) {
+  const weatherPenalty = {
+    Clear: 0,
+    Cloudy: 1.4,
+    Rain: 3.1,
+    Fog: 4.8,
+    Thunderstorm: 6.2
+  }[row.weather_condition] || 0;
+  const airportPenalty = {
+    JFK: 3.4,
+    LAX: 2.6,
+    ORD: 2.9,
+    ATL: 2.1,
+    DFW: 1.7,
+    SFO: 2.8
+  }[row.departure_airport] || 1.5;
+  const aircraftPenalty = row.aircraft_type.includes("777") || row.aircraft_type.includes("A350") ? 1.4 : 0.6;
+  const deterministicNoise = ((index % 7) - 3) * 0.42;
+  const prediction = 9.5
+    + row.airport_congestion_level * 2.15
+    + row.departure_delay_minutes * 0.09
+    + Math.max(0, 8 - row.visibility) * 0.75
+    + row.wind_speed * 0.05
+    + weatherPenalty
+    + airportPenalty
+    + aircraftPenalty
+    + deterministicNoise;
+  return Number(prediction.toFixed(1));
+}
+
+function renderMetrics(data) {
+  const totalFuel = sum(data, "estimated_extra_fuel_kg");
+  const totalCo2 = sum(data, "estimated_co2_kg");
+  const avgTaxi = average(data, "taxi_out_time_minutes");
+  const mae = average(data.map((row) => ({ error: Math.abs(row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) })), "error");
+  const rmse = Math.sqrt(average(data.map((row) => ({ error: (row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) ** 2 })), "error"));
+  const r2 = calculateR2(data);
+
+  setText("metricFlights", data.length.toLocaleString());
+  setText("metricTaxi", `${avgTaxi.toFixed(1)} min`);
+  setText("metricFuel", `${Math.round(totalFuel).toLocaleString()} kg`);
+  setText("metricCo2", `${Math.round(totalCo2).toLocaleString()} kg`);
+  setText("metricCost", `$${Math.round(totalFuel * FUEL_PRICE_PER_KG).toLocaleString()}`);
+  setText("metricMae", `${mae.toFixed(1)} min`);
+  setText("metricRmse", `${rmse.toFixed(1)} min`);
+  setText("metricR2", r2.toFixed(2));
+}
+
+function renderCharts(data) {
+  renderTaxiTrend(data);
+  renderAirportRunway(data);
+  renderWeather(data);
+  renderCongestionFuel(data);
+  renderFuelSaving(data);
+  renderCo2Saving(data);
+  renderPredictedActual(data);
+}
+
+function renderTaxiTrend(data) {
+  const grouped = groupAverage(data, "flight_date", "taxi_out_time_minutes");
+  makeChart("taxiTrendChart", {
+    type: "line",
+    data: {
+      labels: grouped.map((row) => row.key),
+      datasets: [{
+        label: "Average taxi-out minutes",
+        data: grouped.map((row) => row.value),
+        borderColor: palette.teal,
+        backgroundColor: "rgba(13, 118, 109, 0.12)",
+        fill: true,
+        tension: 0.32,
+        pointRadius: 3
+      }]
+    },
+    options: chartOptions("Flight date", "Minutes")
+  });
+}
+
+function renderAirportRunway(data) {
+  const grouped = groupAverage(data, (row) => `${row.departure_airport} ${row.runway}`, "taxi_out_time_minutes")
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+  makeChart("airportRunwayChart", {
+    type: "bar",
+    data: {
+      labels: grouped.map((row) => row.key),
+      datasets: [{
+        label: "Average taxi-out minutes",
+        data: grouped.map((row) => row.value),
+        backgroundColor: palette.blue
+      }]
+    },
+    options: chartOptions("Airport and runway", "Minutes")
+  });
+}
+
+function renderWeather(data) {
+  const grouped = groupAverage(data, "weather_condition", "taxi_out_time_minutes")
+    .sort((a, b) => a.value - b.value);
+  makeChart("weatherChart", {
+    type: "bar",
+    data: {
+      labels: grouped.map((row) => row.key),
+      datasets: [{
+        label: "Average taxi-out minutes",
+        data: grouped.map((row) => row.value),
+        backgroundColor: [palette.green, palette.teal, palette.blue, palette.amber, palette.red]
+      }]
+    },
+    options: chartOptions("Weather condition", "Minutes")
+  });
+}
+
+function renderCongestionFuel(data) {
+  makeChart("congestionFuelChart", {
+    type: "scatter",
+    data: {
+      datasets: [{
+        label: "Flights",
+        data: data.map((row) => ({
+          x: row.airport_congestion_level,
+          y: row.estimated_extra_fuel_kg
+        })),
+        backgroundColor: "rgba(199, 106, 27, 0.68)",
+        borderColor: palette.amber,
+        pointRadius: 5
+      }]
+    },
+    options: chartOptions("Congestion level", "Extra fuel kg")
+  });
+}
+
+function renderFuelSaving(data) {
+  const grouped = groupSum(data, "departure_airport", "estimated_extra_fuel_kg")
+    .sort((a, b) => b.value - a.value);
+  makeChart("fuelSavingChart", {
+    type: "bar",
+    data: {
+      labels: grouped.map((row) => row.key),
+      datasets: [
+        {
+          label: "Observed extra fuel kg",
+          data: grouped.map((row) => row.value),
+          backgroundColor: palette.amber
+        },
+        {
+          label: "Potential saving kg at 18%",
+          data: grouped.map((row) => row.value * 0.18),
+          backgroundColor: palette.green
+        }
+      ]
+    },
+    options: chartOptions("Departure airport", "Fuel kg")
+  });
+}
+
+function renderCo2Saving(data) {
+  const grouped = groupSum(data, "departure_airport", "estimated_co2_kg")
+    .sort((a, b) => b.value - a.value);
+  makeChart("co2SavingChart", {
+    type: "bar",
+    data: {
+      labels: grouped.map((row) => row.key),
+      datasets: [
+        {
+          label: "Observed CO2 kg",
+          data: grouped.map((row) => row.value),
+          backgroundColor: palette.gray
+        },
+        {
+          label: "Avoided CO2 kg at 18%",
+          data: grouped.map((row) => row.value * 0.18),
+          backgroundColor: palette.teal
+        }
+      ]
+    },
+    options: chartOptions("Departure airport", "CO2 kg")
+  });
+}
+
+function renderPredictedActual(data) {
+  makeChart("predictedActualChart", {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          label: "Predicted vs actual",
+          data: data.map((row) => ({
+            x: row.taxi_out_time_minutes,
+            y: row.predicted_taxi_out_time_minutes
+          })),
+          backgroundColor: "rgba(37, 99, 235, 0.7)",
+          pointRadius: 5
+        },
+        {
+          label: "Ideal fit",
+          type: "line",
+          data: [{ x: 12, y: 12 }, { x: 42, y: 42 }],
+          borderColor: palette.teal,
+          borderDash: [6, 5],
+          pointRadius: 0,
+          fill: false
+        }
+      ]
+    },
+    options: chartOptions("Actual taxi-out minutes", "Predicted taxi-out minutes")
+  });
+}
+
+function setupScenario(data) {
+  const range = document.getElementById("reductionRange");
+  const update = () => {
+    const reduction = Number(range.value) / 100;
+    const fuelSaved = sum(data, "estimated_extra_fuel_kg") * reduction;
+    setText("reductionValue", range.value);
+    setText("scenarioFuel", `${Math.round(fuelSaved).toLocaleString()} kg`);
+    setText("scenarioCost", `$${Math.round(fuelSaved * FUEL_PRICE_PER_KG).toLocaleString()}`);
+    setText("scenarioCo2", `${Math.round(fuelSaved * CO2_PER_KG_FUEL).toLocaleString()} kg`);
+  };
+  range.addEventListener("input", update);
+  update();
+}
+
+function renderSampleRows(data) {
+  const rows = data.slice(0, 10).map((row) => `
+    <tr>
+      <td>${row.flight_date}</td>
+      <td>${row.departure_airport}</td>
+      <td>${row.airline}</td>
+      <td>${row.aircraft_type}</td>
+      <td>${row.runway}</td>
+      <td>${row.weather_condition}</td>
+      <td>${row.taxi_out_time_minutes} min</td>
+      <td>${row.estimated_extra_fuel_kg} kg</td>
+      <td>${row.estimated_co2_kg} kg</td>
+    </tr>
+  `).join("");
+  document.getElementById("sampleRows").innerHTML = rows;
+}
+
+function makeChart(canvasId, config) {
+  const context = document.getElementById(canvasId);
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(context, config);
+}
+
+function chartOptions(xTitle, yTitle) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          boxWidth: 12,
+          color: "#17201d"
+        }
+      },
+      tooltip: {
+        backgroundColor: "#17201d",
+        padding: 12
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: xTitle },
+        grid: { color: "rgba(216, 223, 220, 0.7)" },
+        ticks: { color: "#60706b" }
+      },
+      y: {
+        title: { display: true, text: yTitle },
+        grid: { color: "rgba(216, 223, 220, 0.7)" },
+        ticks: { color: "#60706b" },
+        beginAtZero: false
+      }
+    }
+  };
+}
+
+function groupAverage(data, keySelector, valueKey) {
+  const grouped = groupValues(data, keySelector, valueKey);
+  return Object.entries(grouped).map(([key, values]) => ({
+    key,
+    value: Number((values.reduce((total, value) => total + value, 0) / values.length).toFixed(1))
+  }));
+}
+
+function groupSum(data, keySelector, valueKey) {
+  const grouped = groupValues(data, keySelector, valueKey);
+  return Object.entries(grouped).map(([key, values]) => ({
+    key,
+    value: Number(values.reduce((total, value) => total + value, 0).toFixed(1))
+  }));
+}
+
+function groupValues(data, keySelector, valueKey) {
+  return data.reduce((groups, row) => {
+    const key = typeof keySelector === "function" ? keySelector(row) : row[keySelector];
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(Number(row[valueKey]));
+    return groups;
+  }, {});
+}
+
+function calculateR2(data) {
+  const meanActual = average(data, "taxi_out_time_minutes");
+  const ssTotal = data.reduce((total, row) => total + (row.taxi_out_time_minutes - meanActual) ** 2, 0);
+  const ssResidual = data.reduce((total, row) => total + (row.taxi_out_time_minutes - row.predicted_taxi_out_time_minutes) ** 2, 0);
+  return 1 - ssResidual / ssTotal;
+}
+
+function sum(data, key) {
+  return data.reduce((total, row) => total + Number(row[key]), 0);
+}
+
+function average(data, key) {
+  return sum(data, key) / data.length;
+}
+
+function setText(id, value) {
+  document.getElementById(id).textContent = value;
+}

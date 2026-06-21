@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight Fuel Optimization Dashboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="wrap">
+    <nav class="nav" aria-label="Dashboard sections">
+      <a href="#overview" class="active">Overview</a>
+      <a href="#taxi-analysis">Taxi-Out</a>
+      <a href="#weather">Weather</a>
+      <a href="#fuel">Fuel</a>
+      <a href="#co2">CO2</a>
+      <a href="#ml">ML Results</a>
+      <a href="#scenario">Scenario</a>
+    </nav>
+
+    <header class="hero" id="overview">
+      <div>
+        <div class="eyebrow">Academic ML Project</div>
+        <h1>Flight Fuel Optimization using Machine Learning</h1>
+        <p class="lede">
+          A static GitHub Pages dashboard for predicting taxi-out and pushback delay, estimating avoidable fuel burn, and translating operational delay into cost and CO2 impact.
+        </p>
+        <div class="stamp">Synthetic aviation operations sample | Built for reproducible dashboard deployment</div>
+      </div>
+      <div class="hero-card" aria-label="Methodology summary">
+        <div class="eyebrow">Model Target</div>
+        <strong>Taxi-out time minutes</strong>
+        <p>
+          The sample model combines departure delay, congestion, weather, visibility, wind, runway, airport, and aircraft features to estimate expected taxi-out duration.
+        </p>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="Key dashboard metrics">
+      <article class="card">
+        <div class="eyebrow">Flights Analyzed</div>
+        <div class="metric" id="metricFlights">--</div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Average Taxi-Out</div>
+        <div class="metric" id="metricTaxi">--</div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Extra Fuel Burn</div>
+        <div class="metric" id="metricFuel">--</div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Estimated CO2</div>
+        <div class="metric" id="metricCo2">--</div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Overview</h2>
+      <p>
+        This dashboard treats taxi-out delay as an operational optimization problem. The workflow starts with flight movement records, enriches them with weather and congestion indicators, predicts taxi-out minutes, and then estimates the downstream fuel, cost, and emissions effect.
+      </p>
+      <div class="explain-grid">
+        <article class="explain-card">
+          <h3>Prediction</h3>
+          <p>Forecast expected taxi-out duration before departure using airport, runway, weather, aircraft, and congestion signals.</p>
+        </article>
+        <article class="explain-card">
+          <h3>Optimization</h3>
+          <p>Estimate avoidable minutes from better pushback sequencing, gate holds, or congestion-aware departure planning.</p>
+        </article>
+        <article class="explain-card">
+          <h3>Impact</h3>
+          <p>Convert delay minutes into extra fuel, fuel cost, and CO2 emissions using aircraft-specific burn rates.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" id="taxi-analysis">
+      <h2>Taxi-Out Time Analysis</h2>
+      <p>
+        Taxi-out time increases when queues form between gate pushback and runway departure. The trend chart highlights daily average taxi-out time, while the airport/runway chart identifies where delays concentrate.
+      </p>
+      <div class="two-up">
+        <div class="chart-card">
+          <h3>Average Taxi-Out Time Trend</h3>
+          <canvas id="taxiTrendChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Taxi Delay by Airport and Runway</h3>
+          <canvas id="airportRunwayChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="weather">
+      <h2>Weather & Congestion Impact</h2>
+      <p>
+        Low visibility, adverse weather, and airport surface congestion compound taxi time by reducing runway throughput and increasing sequencing buffers.
+      </p>
+      <div class="two-up">
+        <div class="chart-card">
+          <h3>Weather Impact on Taxi Time</h3>
+          <canvas id="weatherChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Congestion vs Fuel Burn</h3>
+          <canvas id="congestionFuelChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="fuel">
+      <h2>Fuel Burn Estimation</h2>
+      <p>
+        Extra fuel is estimated as excess taxi minutes above a baseline multiplied by aircraft taxi fuel burn rate. The chart below compares observed extra fuel with a conservative optimization case.
+      </p>
+      <div class="two-up">
+        <div class="chart-card">
+          <h3>Estimated Fuel Saving</h3>
+          <canvas id="fuelSavingChart"></canvas>
+        </div>
+        <div class="insight-card">
+          <div class="eyebrow">Fuel Cost Translation</div>
+          <div class="metric" id="metricCost">--</div>
+          <p>
+            Cost impact assumes synthetic jet fuel pricing of USD 0.86 per kilogram. In production, this can be replaced by airline-specific uplift or spot-price data.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="co2">
+      <h2>CO2 Impact</h2>
+      <p>
+        Jet fuel emissions are approximated using 3.16 kilograms of CO2 per kilogram of fuel. The optimization case shows potential emissions avoided when taxi delays are reduced.
+      </p>
+      <div class="chart-card wide">
+        <h3>CO2 Saving Estimate</h3>
+        <canvas id="co2SavingChart"></canvas>
+      </div>
+    </section>
+
+    <section class="panel" id="ml">
+      <h2>ML Prediction Results</h2>
+      <p>
+        The dashboard uses a transparent synthetic prediction function to emulate an ML regression output. A real project could replace this with model outputs from random forest, gradient boosting, or neural network experiments.
+      </p>
+      <div class="two-up">
+        <div class="chart-card">
+          <h3>Predicted vs Actual Taxi-Out Time</h3>
+          <canvas id="predictedActualChart"></canvas>
+        </div>
+        <div class="model-grid">
+          <article class="model-card">
+            <div class="eyebrow">Synthetic MAE</div>
+            <div class="metric" id="metricMae">--</div>
+          </article>
+          <article class="model-card">
+            <div class="eyebrow">Synthetic RMSE</div>
+            <div class="metric" id="metricRmse">--</div>
+          </article>
+          <article class="model-card">
+            <div class="eyebrow">Synthetic R2</div>
+            <div class="metric" id="metricR2">--</div>
+          </article>
+          <article class="model-card">
+            <div class="eyebrow">Main Drivers</div>
+            <p>Congestion, visibility, weather condition, departure delay, and runway queue effects.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="scenario">
+      <h2>Scenario Analysis</h2>
+      <p>
+        Adjust the assumed reduction in taxi-out delay to estimate operational savings. This is useful for testing gate-hold, runway balancing, and departure metering strategies.
+      </p>
+      <div class="scenario-grid">
+        <div class="control-card">
+          <label for="reductionRange">Taxi delay reduction target</label>
+          <input type="range" id="reductionRange" min="5" max="35" value="18" step="1">
+          <div class="range-value"><span id="reductionValue">18</span>% reduction</div>
+        </div>
+        <article class="scenario-card">
+          <div class="eyebrow">Fuel Saved</div>
+          <div class="metric" id="scenarioFuel">--</div>
+        </article>
+        <article class="scenario-card">
+          <div class="eyebrow">Cost Saved</div>
+          <div class="metric" id="scenarioCost">--</div>
+        </article>
+        <article class="scenario-card">
+          <div class="eyebrow">CO2 Avoided</div>
+          <div class="metric" id="scenarioCo2">--</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Sample Data</h2>
+      <p>
+        The CSV file includes synthetic records with all requested features. The first rows are shown here so the dashboard remains transparent and easy to audit.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Airport</th>
+              <th>Airline</th>
+              <th>Aircraft</th>
+              <th>Runway</th>
+              <th>Weather</th>
+              <th>Taxi-Out</th>
+              <th>Extra Fuel</th>
+              <th>CO2</th>
+            </tr>
+          </thead>
+          <tbody id="sampleRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>Static dashboard built with HTML, CSS, JavaScript, Chart.js, and synthetic aviation data. Ready for GitHub Pages.</p>
+    </footer>
+  </main>
+</body>
+</html>

@@ -214,6 +214,10 @@ p {
   height: 360px !important;
 }
 
+.spacer {
+  margin-top: 18px;
+}
+
 .insight-card {
   display: flex;
   flex-direction: column;

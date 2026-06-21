@@ -44,6 +44,11 @@ The sample CSV includes:
 - `departure_delay_minutes`
 - `wind_speed`
 - `visibility`
+- `wind_direction_degrees`
+- `runway_heading_degrees`
+- `headwind_component_knots`
+- `tailwind_component_knots`
+- `crosswind_component_knots`
 - `weather_condition`
 - `airport_congestion_level`
 - `fuel_burn_rate_kg_per_minute`
@@ -55,6 +60,7 @@ The sample CSV includes:
 - Average taxi-out time trend
 - Taxi delay by airport/runway
 - Weather impact on taxi time
+- Tailwind and crosswind impact on taxi-out time
 - Congestion vs fuel burn
 - Estimated fuel saving
 - CO2 saving estimate
@@ -62,7 +68,19 @@ The sample CSV includes:
 
 ## Methodology
 
-The dashboard uses synthetic data designed to resemble airport surface operations. Taxi-out time rises with congestion, lower visibility, adverse weather, wind, runway effects, and departure delay. Extra fuel burn is estimated as:
+The dashboard uses synthetic data designed to resemble airport surface operations. Taxi-out time rises with congestion, lower visibility, adverse weather, runway wind components, runway effects, and departure delay.
+
+Raw wind speed is converted into runway-relative components:
+
+```text
+headwind_component = wind_speed * cos(wind_direction_degrees - runway_heading_degrees)
+crosswind_component = abs(wind_speed * sin(wind_direction_degrees - runway_heading_degrees))
+tailwind_component = max(-headwind_component, 0)
+```
+
+This feature engineering is more aviation-relevant than raw wind speed because the same wind can be a headwind, tailwind, or crosswind depending on assigned runway direction.
+
+Extra fuel burn is estimated as:
 
 ```text
 max(taxi_out_time_minutes - 14, 0) * fuel_burn_rate_kg_per_minute

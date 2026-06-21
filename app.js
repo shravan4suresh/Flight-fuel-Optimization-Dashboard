@@ -34,6 +34,11 @@ async function loadFlightData() {
     departure_delay_minutes: Number(row.departure_delay_minutes),
     wind_speed: Number(row.wind_speed),
     visibility: Number(row.visibility),
+    wind_direction_degrees: Number(row.wind_direction_degrees),
+    runway_heading_degrees: Number(row.runway_heading_degrees),
+    headwind_component_knots: Number(row.headwind_component_knots),
+    tailwind_component_knots: Number(row.tailwind_component_knots),
+    crosswind_component_knots: Number(row.crosswind_component_knots),
     airport_congestion_level: Number(row.airport_congestion_level),
     fuel_burn_rate_kg_per_minute: Number(row.fuel_burn_rate_kg_per_minute),
     estimated_extra_fuel_kg: Number(row.estimated_extra_fuel_kg),
@@ -59,7 +64,8 @@ function predictTaxiOut(row, index) {
     Cloudy: 1.4,
     Rain: 3.1,
     Fog: 4.8,
-    Thunderstorm: 6.2
+    Thunderstorm: 6.2,
+    Snow: 5.4
   }[row.weather_condition] || 0;
   const airportPenalty = {
     JFK: 3.4,
@@ -75,7 +81,9 @@ function predictTaxiOut(row, index) {
     + row.airport_congestion_level * 2.15
     + row.departure_delay_minutes * 0.09
     + Math.max(0, 8 - row.visibility) * 0.75
-    + row.wind_speed * 0.05
+    + row.headwind_component_knots * -0.04
+    + row.tailwind_component_knots * 0.28
+    + row.crosswind_component_knots * 0.11
     + weatherPenalty
     + airportPenalty
     + aircraftPenalty
@@ -87,6 +95,7 @@ function renderMetrics(data) {
   const totalFuel = sum(data, "estimated_extra_fuel_kg");
   const totalCo2 = sum(data, "estimated_co2_kg");
   const avgTaxi = average(data, "taxi_out_time_minutes");
+  const avgTailwind = average(data, "tailwind_component_knots");
   const mae = average(data.map((row) => ({ error: Math.abs(row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) })), "error");
   const rmse = Math.sqrt(average(data.map((row) => ({ error: (row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) ** 2 })), "error"));
   const r2 = calculateR2(data);
@@ -95,6 +104,7 @@ function renderMetrics(data) {
   setText("metricTaxi", `${avgTaxi.toFixed(1)} min`);
   setText("metricFuel", `${Math.round(totalFuel).toLocaleString()} kg`);
   setText("metricCo2", `${Math.round(totalCo2).toLocaleString()} kg`);
+  setText("metricTailwind", `${avgTailwind.toFixed(1)} kt`);
   setText("metricCost", `$${Math.round(totalFuel * FUEL_PRICE_PER_KG).toLocaleString()}`);
   setText("metricMae", `${mae.toFixed(1)} min`);
   setText("metricRmse", `${rmse.toFixed(1)} min`);
@@ -106,6 +116,7 @@ function renderCharts(data) {
   renderAirportRunway(data);
   renderWeather(data);
   renderCongestionFuel(data);
+  renderWindComponents(data);
   renderFuelSaving(data);
   renderCo2Saving(data);
   renderPredictedActual(data);
@@ -163,6 +174,46 @@ function renderWeather(data) {
       }]
     },
     options: chartOptions("Weather condition", "Minutes")
+  });
+}
+
+function renderWindComponents(data) {
+  const grouped = groupAverage(data, tailwindBucket, "taxi_out_time_minutes");
+  const order = ["No tailwind", "Light tailwind", "Moderate tailwind", "High tailwind"];
+  const ordered = order.map((key) => grouped.find((row) => row.key === key)).filter(Boolean);
+  makeChart("windComponentChart", {
+    type: "bar",
+    data: {
+      labels: ordered.map((row) => row.key),
+      datasets: [
+        {
+          label: "Average taxi-out minutes",
+          data: ordered.map((row) => row.value),
+          backgroundColor: palette.blue,
+          yAxisID: "y"
+        },
+        {
+          label: "Average crosswind knots",
+          data: ordered.map((row) => average(data.filter((flight) => tailwindBucket(flight) === row.key), "crosswind_component_knots")),
+          backgroundColor: palette.amber,
+          yAxisID: "y1"
+        }
+      ]
+    },
+    options: {
+      ...chartOptions("Tailwind component bucket", "Taxi-out minutes"),
+      scales: {
+        x: chartOptions("Tailwind component bucket", "Taxi-out minutes").scales.x,
+        y: chartOptions("Tailwind component bucket", "Taxi-out minutes").scales.y,
+        y1: {
+          position: "right",
+          title: { display: true, text: "Crosswind knots" },
+          grid: { drawOnChartArea: false },
+          ticks: { color: "#60706b" },
+          beginAtZero: true
+        }
+      }
+    }
   });
 }
 
@@ -285,12 +336,21 @@ function renderSampleRows(data) {
       <td>${row.aircraft_type}</td>
       <td>${row.runway}</td>
       <td>${row.weather_condition}</td>
+      <td>${row.tailwind_component_knots.toFixed(1)} kt</td>
+      <td>${row.crosswind_component_knots.toFixed(1)} kt</td>
       <td>${row.taxi_out_time_minutes} min</td>
       <td>${row.estimated_extra_fuel_kg} kg</td>
       <td>${row.estimated_co2_kg} kg</td>
     </tr>
   `).join("");
   document.getElementById("sampleRows").innerHTML = rows;
+}
+
+function tailwindBucket(row) {
+  if (row.tailwind_component_knots >= 12) return "High tailwind";
+  if (row.tailwind_component_knots >= 6) return "Moderate tailwind";
+  if (row.tailwind_component_knots > 0) return "Light tailwind";
+  return "No tailwind";
 }
 
 function makeChart(canvasId, config) {

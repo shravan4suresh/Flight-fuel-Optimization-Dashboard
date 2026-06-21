@@ -34,7 +34,7 @@
         <div class="eyebrow">Model Target</div>
         <strong>Taxi-out time minutes</strong>
         <p>
-          The sample model combines departure delay, congestion, weather, visibility, wind, runway, airport, and aircraft features to estimate expected taxi-out duration.
+          The sample model combines departure delay, congestion, weather, visibility, runway-relative wind components, airport, and aircraft features to estimate expected taxi-out duration.
         </p>
       </div>
     </header>
@@ -56,6 +56,10 @@
         <div class="eyebrow">Estimated CO2</div>
         <div class="metric" id="metricCo2">--</div>
       </article>
+      <article class="card">
+        <div class="eyebrow">Avg Tailwind Component</div>
+        <div class="metric" id="metricTailwind">--</div>
+      </article>
     </section>
 
     <section class="panel">
@@ -75,6 +79,10 @@
         <article class="explain-card">
           <h3>Impact</h3>
           <p>Convert delay minutes into extra fuel, fuel cost, and CO2 emissions using aircraft-specific burn rates.</p>
+        </article>
+        <article class="explain-card">
+          <h3>Wind Components</h3>
+          <p>Transform raw wind speed into headwind, tailwind, and crosswind components relative to each assigned runway.</p>
         </article>
       </div>
     </section>
@@ -110,6 +118,10 @@
           <h3>Congestion vs Fuel Burn</h3>
           <canvas id="congestionFuelChart"></canvas>
         </div>
+      </div>
+      <div class="chart-card wide spacer">
+        <h3>Tailwind and Crosswind Impact on Taxi-Out Time</h3>
+        <canvas id="windComponentChart"></canvas>
       </div>
     </section>
 
@@ -169,7 +181,7 @@
           </article>
           <article class="model-card">
             <div class="eyebrow">Main Drivers</div>
-            <p>Congestion, visibility, weather condition, departure delay, and runway queue effects.</p>
+            <p>Congestion, visibility, weather condition, runway wind components, departure delay, and runway queue effects.</p>
           </article>
         </div>
       </div>
@@ -216,6 +228,8 @@
               <th>Aircraft</th>
               <th>Runway</th>
               <th>Weather</th>
+              <th>Tailwind</th>
+              <th>Crosswind</th>
               <th>Taxi-Out</th>
               <th>Extra Fuel</th>
               <th>CO2</th>

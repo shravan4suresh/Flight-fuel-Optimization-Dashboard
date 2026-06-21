@@ -73,6 +73,10 @@ The sample CSV includes:
 
 The dashboard includes a **Refresh Data** button. It re-fetches `data/sample_flight_data.csv` with a timestamped request so the browser does not reuse an older cached CSV. If the CSV content has changed, every metric, chart, scenario estimate, and sample table is rebuilt in place. If the file is unchanged, the dashboard reports that no newer CSV was found.
 
+## Filtering
+
+The dashboard defaults to Singapore Changi Airport (`SIN`) so the main view is focused on one airport. Use the Airport and Airline filters to analyze a different airport or carrier; every chart, metric, scenario estimate, and table updates from the selected records.
+
 ## Methodology
 
 The dashboard uses synthetic data designed to resemble airport surface operations. Taxi-out time rises with congestion, lower visibility, adverse weather, runway wind components, runway effects, and departure delay.

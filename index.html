@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight Fuel Optimization Dashboard</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="style.css?v=data-refresh">
+  <link rel="stylesheet" href="style.css?v=airport-filter">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
-  <script src="app.js?v=data-refresh" defer></script>
+  <script src="app.js?v=airport-filter" defer></script>
 </head>
 <body>
   <main class="wrap">
     <nav class="nav" aria-label="Dashboard sections">
       <a href="#overview" class="active">Overview</a>
+      <a href="#filters">Filters</a>
       <a href="#taxi-analysis">Taxi-Out</a>
       <a href="#weather">Weather</a>
       <a href="#changi">Changi</a>
@@ -43,6 +44,28 @@
       </div>
     </header>
 
+    <section class="panel filter-panel" id="filters">
+      <h2>Data Filters</h2>
+      <p>
+        Focus the dashboard on one airport and, optionally, one airline. All metrics, charts, scenario values, and sample rows update from the selected slice.
+      </p>
+      <div class="filter-grid">
+        <label>
+          <span>Airport</span>
+          <input id="airportFilter" list="airportOptions" value="SIN" autocomplete="off">
+          <datalist id="airportOptions"></datalist>
+        </label>
+        <label>
+          <span>Airline</span>
+          <input id="airlineFilter" list="airlineOptions" value="All Airlines" autocomplete="off">
+          <datalist id="airlineOptions"></datalist>
+        </label>
+        <button class="refresh-button" type="button" id="applyFiltersButton">Apply Filter</button>
+        <button class="secondary-button" type="button" id="resetFiltersButton">Reset to SIN</button>
+      </div>
+      <div class="filter-summary" id="filterSummary">Showing Singapore Changi records.</div>
+    </section>
+
     <section class="summary-grid" aria-label="Key dashboard metrics">
       <article class="card">
         <div class="eyebrow">Flights Analyzed</div>
@@ -65,8 +88,8 @@
         <div class="metric" id="metricTailwind">--</div>
       </article>
       <article class="card">
-        <div class="eyebrow">SIN Flights</div>
-        <div class="metric" id="metricSinFlights">--</div>
+        <div class="eyebrow">Selected Airport</div>
+        <div class="metric" id="metricSelectedAirport">--</div>
       </article>
     </section>
 
@@ -93,8 +116,8 @@
           <p>Transform raw wind speed into headwind, tailwind, and crosswind components relative to each assigned runway.</p>
         </article>
         <article class="explain-card">
-          <h3>Changi Seasonality</h3>
-          <p>Compare synthetic Singapore Changi peak and off-peak travel periods to show how demand changes taxi delay and fuel impact.</p>
+          <h3>Airport Focus</h3>
+          <p>Default to Singapore Changi, then switch airport or airline to compare focused operating patterns.</p>
         </article>
       </div>
     </section>
@@ -138,17 +161,17 @@
     </section>
 
     <section class="panel" id="changi">
-      <h2>Singapore Changi Seasonal Analysis</h2>
+      <h2>Airport Seasonal Analysis</h2>
       <p>
-        Singapore Changi Airport is included as a focused synthetic case study. Peak periods model school-holiday and year-end travel demand, while off-peak periods model steadier baseline operations.
+        Peak periods model school-holiday and year-end travel demand, while off-peak periods model steadier baseline operations for the selected airport and airline.
       </p>
       <div class="summary-grid compact">
         <article class="card">
-          <div class="eyebrow">SIN Peak Taxi-Out</div>
+          <div class="eyebrow">Peak Taxi-Out</div>
           <div class="metric" id="metricSinPeakTaxi">--</div>
         </article>
         <article class="card">
-          <div class="eyebrow">SIN Off-Peak Taxi-Out</div>
+          <div class="eyebrow">Off-Peak Taxi-Out</div>
           <div class="metric" id="metricSinOffPeakTaxi">--</div>
         </article>
         <article class="card">

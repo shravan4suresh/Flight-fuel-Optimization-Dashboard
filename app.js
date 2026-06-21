@@ -13,11 +13,18 @@ const palette = {
 const charts = {};
 const DATA_URL = "data/sample_flight_data.csv";
 let currentDataSignature = "";
+let allData = [];
 let currentData = [];
 let scenarioListenerReady = false;
+let filtersReady = false;
+let activeFilters = {
+  airport: "SIN",
+  airline: "All Airlines"
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupRefreshButton();
+  setupFilterControls();
   await refreshDashboardData({ force: true, silent: true });
 });
 
@@ -34,14 +41,17 @@ async function refreshDashboardData({ force = false, silent = false } = {}) {
     }
 
     currentDataSignature = signature;
-    currentData = data.map((row, index) => ({
+    allData = data.map((row, index) => ({
       ...row,
       predicted_taxi_out_time_minutes: predictTaxiOut(row, index)
     }));
+    populateFilterOptions(allData);
+    currentData = applyFilters(allData);
 
     renderDashboard(currentData);
+    updateFilterSummary();
     const action = force ? "Loaded" : "Refreshed";
-    setRefreshStatus(`${action} ${currentData.length.toLocaleString()} records | ${formatRefreshTime(new Date())}`);
+    setRefreshStatus(`${action} ${currentData.length.toLocaleString()} of ${allData.length.toLocaleString()} records | ${formatRefreshTime(new Date())}`);
   } catch (error) {
     setRefreshStatus("Unable to refresh data. Check the CSV file path.");
     console.error(error);
@@ -132,9 +142,8 @@ function renderMetrics(data) {
   const totalCo2 = sum(data, "estimated_co2_kg");
   const avgTaxi = average(data, "taxi_out_time_minutes");
   const avgTailwind = average(data, "tailwind_component_knots");
-  const sinData = data.filter((row) => row.departure_airport === "SIN");
-  const sinPeak = sinData.filter((row) => row.travel_season === "Peak");
-  const sinOffPeak = sinData.filter((row) => row.travel_season === "Off-Peak");
+  const peakData = data.filter((row) => row.travel_season === "Peak");
+  const offPeakData = data.filter((row) => row.travel_season === "Off-Peak");
   const mae = average(data.map((row) => ({ error: Math.abs(row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) })), "error");
   const rmse = Math.sqrt(average(data.map((row) => ({ error: (row.predicted_taxi_out_time_minutes - row.taxi_out_time_minutes) ** 2 })), "error"));
   const r2 = calculateR2(data);
@@ -144,10 +153,10 @@ function renderMetrics(data) {
   setText("metricFuel", `${Math.round(totalFuel).toLocaleString()} kg`);
   setText("metricCo2", `${Math.round(totalCo2).toLocaleString()} kg`);
   setText("metricTailwind", `${avgTailwind.toFixed(1)} kt`);
-  setText("metricSinFlights", sinData.length.toLocaleString());
-  setText("metricSinPeakTaxi", `${average(sinPeak, "taxi_out_time_minutes").toFixed(1)} min`);
-  setText("metricSinOffPeakTaxi", `${average(sinOffPeak, "taxi_out_time_minutes").toFixed(1)} min`);
-  setText("metricSinDemand", average(sinPeak, "passenger_demand_index").toFixed(0));
+  setText("metricSelectedAirport", activeFilters.airport || "All");
+  setText("metricSinPeakTaxi", `${average(peakData, "taxi_out_time_minutes").toFixed(1)} min`);
+  setText("metricSinOffPeakTaxi", `${average(offPeakData, "taxi_out_time_minutes").toFixed(1)} min`);
+  setText("metricSinDemand", average(peakData, "passenger_demand_index").toFixed(0));
   setText("metricCost", `$${Math.round(totalFuel * FUEL_PRICE_PER_KG).toLocaleString()}`);
   setText("metricMae", `${mae.toFixed(1)} min`);
   setText("metricRmse", `${rmse.toFixed(1)} min`);
@@ -282,12 +291,11 @@ function renderWindComponents(data) {
 }
 
 function renderChangiSeason(data) {
-  const sinData = data.filter((row) => row.departure_airport === "SIN");
   const order = ["Off-Peak", "Peak"];
-  const seasonTaxi = groupAverage(sinData, "travel_season", "taxi_out_time_minutes");
-  const seasonDelay = groupAverage(sinData, "travel_season", "departure_delay_minutes");
-  const seasonFuel = groupSum(sinData, "travel_season", "estimated_extra_fuel_kg");
-  const seasonCo2 = groupSum(sinData, "travel_season", "estimated_co2_kg");
+  const seasonTaxi = groupAverage(data, "travel_season", "taxi_out_time_minutes");
+  const seasonDelay = groupAverage(data, "travel_season", "departure_delay_minutes");
+  const seasonFuel = groupSum(data, "travel_season", "estimated_extra_fuel_kg");
+  const seasonCo2 = groupSum(data, "travel_season", "estimated_co2_kg");
 
   makeChart("changiSeasonChart", {
     type: "bar",
@@ -458,11 +466,7 @@ function updateScenario(data) {
 }
 
 function renderSampleRows(data) {
-  const featuredRows = [
-    ...data.filter((row) => row.departure_airport === "SIN").slice(0, 6),
-    ...data.filter((row) => row.departure_airport !== "SIN").slice(0, 4)
-  ];
-  const rows = featuredRows.map((row) => `
+  const rows = data.slice(0, 10).map((row) => `
     <tr>
       <td>${row.flight_date}</td>
       <td>${row.travel_season}</td>
@@ -556,8 +560,10 @@ function groupValues(data, keySelector, valueKey) {
 }
 
 function calculateR2(data) {
+  if (data.length < 2) return 0;
   const meanActual = average(data, "taxi_out_time_minutes");
   const ssTotal = data.reduce((total, row) => total + (row.taxi_out_time_minutes - meanActual) ** 2, 0);
+  if (ssTotal === 0) return 0;
   const ssResidual = data.reduce((total, row) => total + (row.taxi_out_time_minutes - row.predicted_taxi_out_time_minutes) ** 2, 0);
   return 1 - ssResidual / ssTotal;
 }
@@ -567,6 +573,7 @@ function sum(data, key) {
 }
 
 function average(data, key) {
+  if (!data.length) return 0;
   return sum(data, key) / data.length;
 }
 
@@ -587,4 +594,95 @@ function setRefreshStatus(message) {
 
 function formatRefreshTime(date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function setupFilterControls() {
+  if (filtersReady) return;
+  filtersReady = true;
+
+  const applyButton = document.getElementById("applyFiltersButton");
+  const resetButton = document.getElementById("resetFiltersButton");
+  const airportInput = document.getElementById("airportFilter");
+  const airlineInput = document.getElementById("airlineFilter");
+
+  if (applyButton) applyButton.addEventListener("click", applySelectedFilters);
+  if (resetButton) {
+    resetButton.addEventListener("click", () => {
+      airportInput.value = "SIN";
+      airlineInput.value = "All Airlines";
+      applySelectedFilters();
+    });
+  }
+
+  [airportInput, airlineInput].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("change", applySelectedFilters);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") applySelectedFilters();
+    });
+  });
+}
+
+function populateFilterOptions(data) {
+  const airports = uniqueSorted(data.map((row) => row.departure_airport));
+  const selectedAirport = getFilterValue("airportFilter", "SIN");
+  const airlineRows = selectedAirport && selectedAirport !== "All Airports"
+    ? data.filter((row) => row.departure_airport === selectedAirport)
+    : data;
+  const airlines = uniqueSorted(airlineRows.map((row) => row.airline));
+
+  setDatalistOptions("airportOptions", ["All Airports", ...airports]);
+  setDatalistOptions("airlineOptions", ["All Airlines", ...airlines]);
+}
+
+function applySelectedFilters() {
+  activeFilters = {
+    airport: normalizeAirportFilter(getFilterValue("airportFilter", "SIN")),
+    airline: normalizeFilterValue(getFilterValue("airlineFilter", "All Airlines"), "All Airlines")
+  };
+
+  populateFilterOptions(allData);
+  currentData = applyFilters(allData);
+  renderDashboard(currentData);
+  updateFilterSummary();
+}
+
+function applyFilters(data) {
+  return data.filter((row) => {
+    const airportMatch = activeFilters.airport === "All Airports" || row.departure_airport === activeFilters.airport;
+    const airlineMatch = activeFilters.airline === "All Airlines" || row.airline === activeFilters.airline;
+    return airportMatch && airlineMatch;
+  });
+}
+
+function updateFilterSummary() {
+  const airport = activeFilters.airport === "All Airports" ? "all airports" : activeFilters.airport;
+  const airline = activeFilters.airline === "All Airlines" ? "all airlines" : activeFilters.airline;
+  setText("filterSummary", `Showing ${currentData.length.toLocaleString()} records for ${airport} and ${airline}.`);
+}
+
+function getFilterValue(id, fallback) {
+  return document.getElementById(id)?.value?.trim() || fallback;
+}
+
+function normalizeFilterValue(value, allLabel) {
+  if (!value) return allLabel;
+  if (value.toLowerCase() === allLabel.toLowerCase()) return allLabel;
+  return value;
+}
+
+function normalizeAirportFilter(value) {
+  if (!value) return "All Airports";
+  if (value.toLowerCase() === "all airports") return "All Airports";
+  return value.toUpperCase();
+}
+
+function setDatalistOptions(id, options) {
+  const datalist = document.getElementById(id);
+  if (!datalist) return;
+  datalist.innerHTML = options.map((option) => `<option value="${option}"></option>`).join("");
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
